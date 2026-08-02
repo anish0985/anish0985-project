@@ -1,0 +1,17 @@
+{
+  "name": "mini-chatgpt",
+  "version": "1.0.0",
+  "description": "Mini ChatGPT web app with persistent memory, JWT auth, and SQLite storage",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  }
+}
