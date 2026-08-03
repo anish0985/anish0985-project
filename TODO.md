@@ -1,21 +1,32 @@
-# Mini ChatGPT Build - Task Checklist
+# MiniGPT Frontend Build - Task Checklist
 
 ## Setup
-- [x] Create package.json with dependencies
-- [x] Create .env with API key + JWT secret
-- [x] Create .gitignore
+- [ ] Create TODO.md with task breakdown
 
-## Backend
-- [x] Create db.js (SQLite schema: users, chats, messages, memories)
-- [x] Create memory.js (fact extraction + retrieval)
-- [x] Create server.js (Express routes: auth, chat, history, status)
+## Core Assets
+- [ ] Create public/assets/images/logo.svg and favicon
+- [ ] Create public/assets/icons/ (placeholder icons)
 
-## Frontend
-- [x] Create public/index.html (sidebar + chat area + login view)
-- [x] Create public/style.css (premium dark theme, responsive)
-- [x] Create public/app.js (auth, chat flow, typing indicator, theme toggle)
+## CSS
+- [ ] Create public/css/style.css (premium responsive, dark/light mode, animations)
 
-## Verification
-- [x] npm install
-- [x] Start server test
-- [x] End-to-end test: signup → login → chat → recall memory
+## JavaScript Modules
+- [ ] Create public/js/api.js (API wrapper with JWT auth)
+- [ ] Create public/js/main.js (theme toggle, toast, shared utils, auth guard)
+- [ ] Create public/js/auth.js (login, register, logout, forgot/reset password)
+- [ ] Create public/js/dashboard.js (chat app: history, messages, send)
+- [ ] Create public/js/profile.js (profile page logic)
+
+## HTML Pages
+- [ ] Create public/index.html (landing page)
+- [ ] Create public/login.html (login page)
+- [ ] Create public/register.html (registration page)
+- [ ] Create public/dashboard.html (main chat application)
+- [ ] Create public/profile.html (profile page)
+- [ ] Create public/reset-password.html (reset password page)
+
+## Cleanup
+- [ ] Remove old public/app.js and public/style.css references
+- [ ] Verify all pages load correctly
+- [ ] Test full flow: register → login → chat → history → profile → logout
+- [ ] Test dark/light mode and mobile responsiveness

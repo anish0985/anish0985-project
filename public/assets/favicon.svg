@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="MiniGPT logo">
+  <rect width="64" height="64" rx="16" fill="#111827"/>
+  <path d="M18 34c0-8.8 7.2-16 16-16h2c8.8 0 16 7.2 16 16v4c0 8.8-7.2 16-16 16h-2c-8.8 0-16-7.2-16-16v-4Z" fill="#6366f1"/>
+  <circle cx="26" cy="34" r="4" fill="#fff"/>
+  <circle cx="38" cy="34" r="4" fill="#fff"/>
+  <path d="M24 46c3 2.2 7 2.2 10 0" stroke="#a78bfa" stroke-width="3" stroke-linecap="round"/>
+</svg>

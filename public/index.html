@@ -1,160 +1,86 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MiniGPT — Your Smart Assistant</title>
-  <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-</head>
-<body>
-  <!-- ===== LOGIN / SIGNUP VIEW ===== -->
-  <div id="auth-view" class="auth-view hidden">
-    <div class="auth-card">
-      <div class="auth-logo">
-        <div class="logo-icon"><i class="fa-solid fa-robot"></i></div>
-        <h1>MiniGPT</h1>
-        <p class="auth-tagline">Your assistant with persistent memory</p>
-      </div>
-
-      <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Login</button>
-        <button class="auth-tab" data-tab="signup">Sign Up</button>
-      </div>
-
-      <form id="login-form" class="auth-form active">
-        <div class="form-group">
-          <label for="login-email"><i class="fa-solid fa-envelope"></i> Email</label>
-          <input type="email" id="login-email" placeholder="you@example.com" autocomplete="email" required>
-        </div>
-        <div class="form-group">
-          <label for="login-password"><i class="fa-solid fa-lock"></i> Password</label>
-          <input type="password" id="login-password" placeholder="••••••••" autocomplete="current-password" required>
-        </div>
-        <button type="submit" class="btn-primary">Login <i class="fa-solid fa-arrow-right"></i></button>
-        <button type="button" class="link-btn" id="forgot-password-btn">Forgot Password?</button>
-        <p class="form-error" id="login-error"></p>
-      </form>
-
-      <form id="signup-form" class="auth-form">
-        <div class="form-group">
-          <label for="signup-name"><i class="fa-solid fa-user"></i> Name</label>
-          <input type="text" id="signup-name" placeholder="Your name" autocomplete="name" required>
-        </div>
-        <div class="form-group">
-          <label for="signup-email"><i class="fa-solid fa-envelope"></i> Email</label>
-          <input type="email" id="signup-email" placeholder="you@example.com" autocomplete="email" required>
-        </div>
-        <div class="form-group">
-          <label for="signup-password"><i class="fa-solid fa-lock"></i> Password</label>
-          <input type="password" id="signup-password" placeholder="At least 6 characters" autocomplete="new-password" required>
-        </div>
-        <button type="submit" class="btn-primary">Create Account <i class="fa-solid fa-user-plus"></i></button>
-        <p class="form-error" id="signup-error"></p>
-      </form>
-    </div>
-  </div>
-
-  <!-- ===== MAIN APP VIEW ===== -->
-  <div id="app-view" class="app-view hidden">
-    <!-- Sidebar -->
-    <aside class="sidebar">
-      <div class="sidebar-header">
-        <div class="logo-mini">
-          <div class="logo-icon small"><i class="fa-solid fa-robot"></i></div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MiniGPT · Premium AI workspace</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  </head>
+  <body>
+    <div class="landing-page">
+      <nav class="landing-nav">
+        <a href="index.html" class="nav-logo">
+          <div class="logo-icon"><i class="fa-solid fa-robot"></i></div>
           <span>MiniGPT</span>
+        </a>
+        <div class="nav-links">
+          <a class="nav-link" href="login.html">Sign in</a>
+          <a class="btn btn-primary" href="register.html">Create account</a>
         </div>
-        <button class="icon-btn sidebar-close" id="sidebar-close" title="Close sidebar">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
+      </nav>
 
-      <button class="btn-new-chat" id="new-chat-btn">
-        <i class="fa-solid fa-plus"></i> New Chat
-      </button>
-
-      <div class="sidebar-section">
-        <h3 class="sidebar-title">Chat History</h3>
-        <div class="chat-list" id="chat-list">
-          <!-- Chat items loaded from server -->
-          <div class="empty-state">No chats yet</div>
-        </div>
-      </div>
-
-      <div class="sidebar-footer">
-        <button class="icon-btn theme-toggle" id="theme-toggle" title="Toggle dark/light mode">
-          <i class="fa-solid fa-moon"></i>
-        </button>
-
-        <div class="profile">
-          <div class="profile-avatar" id="profile-avatar">U</div>
-          <div class="profile-info">
-            <span class="profile-name" id="profile-name">User</span>
-            <span class="profile-email" id="profile-email">user@email.com</span>
+      <main>
+        <section class="hero">
+          <div class="hero-badge"><i class="fa-solid fa-sparkles"></i> Secure, polished, and ready for real conversations</div>
+          <h1>Meet the AI workspace built for focus and momentum.</h1>
+          <p class="hero-subtitle">MiniGPT combines chat history, persistent memory, and a sleek interface so you can move from idea to execution without friction.</p>
+          <div class="hero-actions">
+            <a class="btn btn-primary" href="register.html">Start free</a>
+            <a class="btn btn-secondary" href="dashboard.html">View dashboard</a>
           </div>
-          <button class="icon-btn logout-btn" id="logout-btn" title="Logout">
-            <i class="fa-solid fa-right-from-bracket"></i>
-          </button>
-        </div>
-      </div>
-    </aside>
-
-    <!-- Sidebar overlay for mobile -->
-    <div class="sidebar-overlay" id="sidebar-overlay"></div>
-
-    <!-- Main Chat Area -->
-    <main class="main-area">
-      <header class="chat-header">
-        <button class="icon-btn sidebar-open" id="sidebar-open" title="Open sidebar">
-          <i class="fa-solid fa-bars"></i>
-        </button>
-        <div class="chat-title" id="chat-title">New Chat</div>
-        <div class="header-actions">
-          <button class="icon-btn clear-chat" id="clear-chat-btn" title="Clear current chat">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      </header>
-
-      <div class="messages-area" id="messages-area">
-        <div class="welcome-screen" id="welcome-screen">
-          <div class="welcome-avatar"><i class="fa-solid fa-robot"></i></div>
-          <h2>MiniGPT</h2>
-          <p class="welcome-subtitle">How can I help you today?</p>
-          <p>Ask me anything, generate code, write content, solve problems, explain concepts, or brainstorm ideas.</p>
-          <div class="suggestion-grid">
-            <div class="suggestion-card">
-              <div class="suggestion-title"><span>💡</span> Explain a concept</div>
-              <div class="suggestion-text">Break down a difficult topic in simple words.</div>
+          <div class="hero-stats">
+            <div class="stat-item">
+              <div class="stat-value">24/7</div>
+              <div class="stat-label">Always available</div>
             </div>
-            <div class="suggestion-card">
-              <div class="suggestion-title"><span>✍️</span> Write something</div>
-              <div class="suggestion-text">Emails, blogs, captions, or professional content.</div>
+            <div class="stat-item">
+              <div class="stat-value">JWT</div>
+              <div class="stat-label">Secure sessions</div>
             </div>
-            <div class="suggestion-card">
-              <div class="suggestion-title"><span>💻</span> Help with coding</div>
-              <div class="suggestion-text">Debug code, build projects, or explain programming.</div>
-            </div>
-            <div class="suggestion-card">
-              <div class="suggestion-title"><span>🚀</span> Brainstorm ideas</div>
-              <div class="suggestion-text">Business, startup, content, or creative ideas.</div>
+            <div class="stat-item">
+              <div class="stat-value">100%</div>
+              <div class="stat-label">Responsive</div>
             </div>
           </div>
-        </div>
-      </div>
+        </section>
 
-      <div class="input-area">
-        <div class="input-container">
-          <textarea id="user-input" placeholder="Message MiniGPT..." rows="1"></textarea>
-          <button class="btn-send" id="send-btn" title="Send message">
-            <i class="fa-solid fa-paper-plane"></i>
-          </button>
-        </div>
-        <p class="input-note">MiniGPT remembers facts you share. Responses are generated by AI.</p>
-      </div>
-    </main>
-  </div>
+        <section class="features">
+          <h2 class="section-title">Everything you need in one place</h2>
+          <p class="section-subtitle">From authentication to chat history, the experience is designed to feel effortless on desktop and mobile.</p>
+          <div class="features-grid">
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-shield-halved"></i></div>
+              <h3>Protected access</h3>
+              <p>Sign in with JWT-backed auth, recover access with reset flows, and stay in control of your data.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-comments"></i></div>
+              <h3>Conversation history</h3>
+              <p>Resume past chats, manage active threads, and continue from exactly where you left off.</p>
+            </article>
+            <article class="feature-card">
+              <div class="feature-icon"><i class="fa-solid fa-bolt"></i></div>
+              <h3>Fast, polished UI</h3>
+              <p>Clean layouts, responsive controls, loading states, and toast feedback keep the experience smooth.</p>
+            </article>
+          </div>
+        </section>
 
-  <script src="app.js"></script>
-</body>
+        <section class="cta-section">
+          <div class="cta-card">
+            <h2>Ready to jump in?</h2>
+            <p>Launch the app and start chatting with a modern experience that feels premium from the first click.</p>
+            <a class="btn" href="register.html">Create your account</a>
+          </div>
+        </section>
+      </main>
+
+      <footer class="landing-footer">Built with Express, SQLite, and a modern vanilla frontend.</footer>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+  </body>
 </html>

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create account · MiniGPT</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  </head>
+  <body>
+    <div class="auth-page">
+      <div class="auth-card">
+        <a class="back-link" href="index.html"><i class="fa-solid fa-arrow-left"></i> Back to home</a>
+        <div class="auth-logo">
+          <div class="logo-icon"><i class="fa-solid fa-user-plus"></i></div>
+          <h1>Create account</h1>
+          <p class="auth-tagline">Start chatting with a polished workspace tailored to you</p>
+        </div>
+
+        <form id="register-form" novalidate>
+          <div class="form-group">
+            <label for="register-name"><i class="fa-solid fa-user"></i> Full name</label>
+            <input id="register-name" name="name" type="text" placeholder="Your name" autocomplete="name" required />
+          </div>
+          <div class="form-group">
+            <label for="register-email"><i class="fa-solid fa-envelope"></i> Email</label>
+            <input id="register-email" name="email" type="email" placeholder="you@example.com" autocomplete="email" required />
+          </div>
+          <div class="form-group">
+            <label for="register-password"><i class="fa-solid fa-lock"></i> Password</label>
+            <div class="password-wrapper">
+              <input id="register-password" name="password" type="password" placeholder="At least 6 characters" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="Toggle password visibility"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </div>
+          <div class="form-group">
+            <label for="register-confirm"><i class="fa-solid fa-shield-halved"></i> Confirm password</label>
+            <div class="password-wrapper">
+              <input id="register-confirm" name="confirm" type="password" placeholder="Confirm your password" autocomplete="new-password" required />
+              <button type="button" class="password-toggle" aria-label="Toggle password visibility"><i class="fa-solid fa-eye"></i></button>
+            </div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Create account</button>
+          <p class="auth-footer">Already have an account? <a href="login.html">Sign in</a></p>
+          <p class="form-error" id="register-error"></p>
+        </form>
+      </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/auth.js"></script>
+  </body>
+</html>

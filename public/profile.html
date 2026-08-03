@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Profile · MiniGPT</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  </head>
+  <body>
+    <div class="profile-page">
+      <header class="profile-header">
+        <div class="profile-header-left">
+          <div class="profile-header-avatar" id="profile-header-avatar">U</div>
+          <div>
+            <h1 id="profile-name">Loading…</h1>
+            <p class="profile-header-sub" id="profile-email">Loading…</p>
+          </div>
+        </div>
+        <div class="profile-header-right">
+          <a class="btn btn-secondary" href="dashboard.html"><i class="fa-solid fa-arrow-left"></i> Back to dashboard</a>
+        </div>
+      </header>
+
+      <div class="profile-container">
+        <div class="profile-card">
+          <h2 class="profile-card-title"><i class="fa-solid fa-circle-info"></i> Account overview</h2>
+          <div class="profile-info-grid">
+            <div class="profile-info-item">
+              <span class="profile-info-label">Full name</span>
+              <span class="profile-info-value" id="profile-full-name">—</span>
+            </div>
+            <div class="profile-info-item">
+              <span class="profile-info-label">Email</span>
+              <span class="profile-info-value" id="profile-email-address">—</span>
+            </div>
+            <div class="profile-info-item">
+              <span class="profile-info-label">Member since</span>
+              <span class="profile-info-value" id="profile-created-at">—</span>
+            </div>
+            <div class="profile-info-item">
+              <span class="profile-info-label">Preferences</span>
+              <span class="profile-info-value" id="profile-preferences">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <h2 class="profile-card-title"><i class="fa-solid fa-plug"></i> Backend status</h2>
+          <div class="api-status-card">
+            <span class="api-status-label">AI API key status</span>
+            <span class="status-badge unknown" id="api-status-badge"><i class="fa-solid fa-circle"></i> Checking…</span>
+          </div>
+          <div class="api-status-card">
+            <span class="api-status-label">Configured model</span>
+            <span class="profile-info-value" id="api-model">—</span>
+          </div>
+        </div>
+
+        <div class="profile-card">
+          <h2 class="profile-card-title"><i class="fa-solid fa-right-from-bracket"></i> Session</h2>
+          <button class="btn btn-danger btn-block" id="logout-button"><i class="fa-solid fa-right-from-bracket"></i> Log out</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/profile.js"></script>
+  </body>
+</html>

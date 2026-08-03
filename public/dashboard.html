@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dashboard · MiniGPT</title>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="css/style.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  </head>
+  <body>
+    <div class="app-view">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div class="logo-mini">
+            <div class="logo-icon small"><i class="fa-solid fa-robot"></i></div>
+            <span>MiniGPT</span>
+          </div>
+          <button class="icon-btn sidebar-close" id="sidebar-close" title="Close sidebar">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+
+        <button class="btn-new-chat" id="new-chat-btn"><i class="fa-solid fa-plus"></i> New chat</button>
+
+        <div class="sidebar-section">
+          <h3 class="sidebar-title">Chat history</h3>
+          <div class="chat-list" id="chat-list">
+            <div class="empty-state">Loading your chats…</div>
+          </div>
+        </div>
+
+        <div class="sidebar-footer">
+          <div class="profile">
+            <div class="profile-avatar" id="sidebar-user-avatar">U</div>
+            <div class="profile-info">
+              <span class="profile-name" id="sidebar-user-name">Loading…</span>
+              <span class="profile-email" id="sidebar-user-email">Loading…</span>
+            </div>
+            <div class="sidebar-footer-actions">
+              <button class="icon-btn theme-toggle" title="Toggle theme"><i class="fa-solid fa-sun"></i></button>
+              <button class="icon-btn logout-btn" id="sidebar-logout" title="Log out"><i class="fa-solid fa-right-from-bracket"></i></button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+      <main class="main-area">
+        <header class="chat-header">
+          <button class="icon-btn sidebar-open" id="sidebar-open" title="Open sidebar"><i class="fa-solid fa-bars"></i></button>
+          <div class="chat-title" id="chat-title">New chat</div>
+          <div class="header-actions">
+            <a class="icon-btn" href="profile.html" title="Profile"><i class="fa-solid fa-user"></i></a>
+            <button class="icon-btn" id="clear-chat-btn" title="Start over"><i class="fa-solid fa-trash"></i></button>
+          </div>
+        </header>
+
+        <div class="messages-area" id="messages-area">
+          <div class="welcome-screen" id="welcome-screen">
+            <div class="welcome-avatar"><i class="fa-solid fa-robot"></i></div>
+            <h2>MiniGPT</h2>
+            <p class="welcome-subtitle">Ask anything and keep the conversation flowing with persistent context.</p>
+            <div class="suggestion-grid">
+              <div class="suggestion-card" data-prompt="Summarize this week’s priorities in a concise plan.">
+                <div class="suggestion-title"><span>📋</span> Plan the week</div>
+                <div class="suggestion-text">Turn scattered notes into a clear action plan.</div>
+              </div>
+              <div class="suggestion-card" data-prompt="Explain how to build a small REST API in Node.js with clear examples.">
+                <div class="suggestion-title"><span>💻</span> Learn something new</div>
+                <div class="suggestion-text">Get a practical walkthrough with code samples.</div>
+              </div>
+              <div class="suggestion-card" data-prompt="Help me draft a thoughtful reply to a client email.">
+                <div class="suggestion-title"><span>✍️</span> Write better</div>
+                <div class="suggestion-text">Polish your message and make it feel professional.</div>
+              </div>
+              <div class="suggestion-card" data-prompt="Create a quick launch checklist for a new product idea.">
+                <div class="suggestion-title"><span>🚀</span> Brainstorm ideas</div>
+                <div class="suggestion-text">Shape a clear strategy with a concrete first step.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="input-area">
+          <div class="input-container">
+            <textarea id="user-input" placeholder="Message MiniGPT…" rows="1"></textarea>
+            <button class="btn-send" id="send-btn" title="Send message"><i class="fa-solid fa-paper-plane"></i></button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/dashboard.js"></script>
+  </body>
+</html>
