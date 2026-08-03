@@ -15,7 +15,7 @@ const RESET_TOKENS = new Map();
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
 
 // ---------- JWT Helpers ----------
 const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
@@ -262,7 +262,7 @@ Use the user's stored memories when relevant to personalize your responses.` + m
 
 // ---------- Serve the app ----------
 app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'index.html'));
 });
 
 app.listen(PORT, () => {
