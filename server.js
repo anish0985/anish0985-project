@@ -4,21 +4,53 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const path = require('path');
+const mongoose = require('mongoose');
 const db = require('./db');
 const memory = require('./memory');
 
 const app = express();
-// Port 3000 is commonly used by other dev servers; use 3001 to avoid conflicts.
-// Override with MINIGPT_PORT if needed.
-const PORT = process.env.MINIGPT_PORT || process.env.PORT || 3001;
+const PORT = Number(process.env.PORT || 10000);
 const RESET_TOKENS = new Map();
 
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'https://your-github-pages-domain.github.io').split(',').map((origin) => origin.trim()).filter(Boolean);
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || /\.github\.io$/i.test(origin) || /\.pages\.dev$/i.test(origin) || origin === 'http://localhost:3000' || origin === 'http://127.0.0.1:3000') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+if (!process.env.MONGODB_URI) {
+  throw new Error('MONGODB_URI must be set in environment variables');
+}
+
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET must be set in environment variables');
+}
+
+mongoose.connect(process.env.MONGODB_URI, {
+  serverSelectionTimeoutMS: 15000,
+  maxPoolSize: 10
+})
+  .then(() => console.log('✅ MongoDB connected'))
+  .catch((err) => {
+    console.error('❌ MongoDB connection error:', err.message);
+    process.exit(1);
+  });
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(express.json());
 app.use(express.static(__dirname));
 
 // ---------- JWT Helpers ----------
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
 
 function signToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
@@ -130,15 +162,10 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
   res.json({ user });
 });
 
-// ---------- API Status (blurred key) ----------
+// ---------- API Status ----------
 app.get('/api/status', (req, res) => {
-  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.BLACKBOX_API_KEY || process.env.API_KEY || '';
-  const keySet = apiKey.length > 0;
-  // Show masked key like "•••••••••••fZ4"
-  const masked = keySet
-    ? '••••••••••' + apiKey.slice(-4)
-    : '';
-  res.json({ keySet, masked, model: 'blackbox-pro' });
+  const apiKey = process.env.GEMINI_API_KEY || '';
+  res.json({ keySet: Boolean(apiKey), model: 'gemini-2.0-flash' });
 });
 
 // ---------- Chat History ----------
@@ -177,7 +204,7 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Message is required' });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY || process.env.BLACKBOX_API_KEY || process.env.API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'AI API key is not configured on the server' });
   }
@@ -214,36 +241,36 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
 Always answer in the same language the user writes in.
 Use the user's stored memories when relevant to personalize your responses.` + memoryContext;
 
-    // 6. Call BlackBox AI API (OpenAI-compatible endpoint)
-    const aiMessages = [
-      { role: 'system', content: systemPrompt },
+    // 6. Call Gemini API using the server-side API key
+    const aiContents = [
+      { role: 'user', parts: [{ text: systemPrompt }] },
       ...history.map(h => ({
-        role: h.role === 'assistant' ? 'assistant' : 'user',
-        content: h.content
+        role: h.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text: h.content }]
       }))
     ];
 
-    const aiResponse = await fetch('https://api.blackbox.ai/v1/chat/completions', {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'blackboxai/blackbox-pro',
-        messages: aiMessages,
-        stream: false,
-        max_tokens: 1024
+        contents: aiContents,
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1024
+        }
       })
     });
 
     if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      throw new Error(`AI API error (${aiResponse.status}): ${errText.slice(0, 200)}`);
+      await aiResponse.text();
+      throw new Error('AI service unavailable');
     }
 
     const aiData = await aiResponse.json();
-    const aiText = aiData.choices?.[0]?.message?.content || '';
+    const aiText = aiData.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
     if (!aiText) throw new Error('AI API returned empty response');
 
     // 7. Save AI response
@@ -260,11 +287,16 @@ Use the user's stored memories when relevant to personalize your responses.` + m
   }
 });
 
+// ---------- Health check ----------
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', service: 'mini-chatgpt' });
+});
+
 // ---------- Serve the app ----------
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`🚀 MiniGPT server running at http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 MiniGPT server running on port ${PORT}`);
 });
