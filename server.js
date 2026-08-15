@@ -15,7 +15,13 @@ const RESET_TOKENS = new Map();
 const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'https://your-github-pages-domain.github.io').split(',').map((origin) => origin.trim()).filter(Boolean);
 const corsOptions = {
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || /\.github\.io$/i.test(origin) || /\.pages\.dev$/i.test(origin) || origin === 'http://localhost:3000' || origin === 'http://127.0.0.1:3000') {
+    if (
+      !origin ||
+      allowedOrigins.includes(origin) ||
+      /\.github\.io$/i.test(origin) ||
+      /\.pages\.dev$/i.test(origin) ||
+      /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)
+    ) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -26,23 +32,16 @@ const corsOptions = {
   allowedHeaders: ['Content-Type', 'Authorization']
 };
 
-if (!process.env.MONGODB_URI) {
-  throw new Error('MONGODB_URI must be set in environment variables');
+if (process.env.MONGODB_URI) {
+  mongoose.connect(process.env.MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+    maxPoolSize: 10
+  })
+    .then(() => console.log('✅ MongoDB connected'))
+    .catch((err) => {
+      console.warn('⚠️  MongoDB connection error (continuing with SQLite):', err.message);
+    });
 }
-
-if (!process.env.JWT_SECRET) {
-  throw new Error('JWT_SECRET must be set in environment variables');
-}
-
-mongoose.connect(process.env.MONGODB_URI, {
-  serverSelectionTimeoutMS: 15000,
-  maxPoolSize: 10
-})
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch((err) => {
-    console.error('❌ MongoDB connection error:', err.message);
-    process.exit(1);
-  });
 
 app.use(cors(corsOptions));
 app.options('*', cors(corsOptions));
@@ -165,7 +164,8 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 // ---------- API Status ----------
 app.get('/api/status', (req, res) => {
   const apiKey = process.env.GEMINI_API_KEY || '';
-  res.json({ keySet: Boolean(apiKey), model: 'gemini-2.0-flash' });
+  const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
+  res.json({ keySet: Boolean(apiKey), model });
 });
 
 // ---------- Chat History ----------
@@ -242,6 +242,7 @@ Always answer in the same language the user writes in.
 Use the user's stored memories when relevant to personalize your responses.` + memoryContext;
 
     // 6. Call Gemini API using the server-side API key
+    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
     const aiContents = [
       { role: 'user', parts: [{ text: systemPrompt }] },
       ...history.map(h => ({
@@ -250,7 +251,7 @@ Use the user's stored memories when relevant to personalize your responses.` + m
       }))
     ];
 
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`, {
+    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
@@ -265,12 +266,13 @@ Use the user's stored memories when relevant to personalize your responses.` + m
     });
 
     if (!aiResponse.ok) {
-      await aiResponse.text();
-      throw new Error('AI service unavailable');
+      const errText = await aiResponse.text();
+      console.error(`Gemini API Error (${aiResponse.status}):`, errText);
+      throw new Error(`AI service error (${aiResponse.status}): ${errText}`);
     }
 
     const aiData = await aiResponse.json();
-    const aiText = aiData.candidates?.[0]?.content?.parts?.map(part => part.text).join('') || '';
+    const aiText = aiData.candidates?.[0]?.content?.parts?.map(part => part.text).filter(Boolean).join('') || '';
     if (!aiText) throw new Error('AI API returned empty response');
 
     // 7. Save AI response
