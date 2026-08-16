@@ -12,19 +12,24 @@ const app = express();
 const PORT = Number(process.env.PORT || 10000);
 const RESET_TOKENS = new Map();
 
-const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || 'https://your-github-pages-domain.github.io').split(',').map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 const corsOptions = {
   origin: (origin, callback) => {
     if (
       !origin ||
+      allowedOrigins.length === 0 ||
+      allowedOrigins.includes('*') ||
       allowedOrigins.includes(origin) ||
+      /\.railway\.app$/i.test(origin) ||
       /\.github\.io$/i.test(origin) ||
       /\.pages\.dev$/i.test(origin) ||
+      /\.netlify\.app$/i.test(origin) ||
+      /\.vercel\.app$/i.test(origin) ||
       /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)
     ) {
       callback(null, true);
     } else {
-      callback(new Error('Not allowed by CORS'));
+      callback(null, false);
     }
   },
   credentials: true,
@@ -71,94 +76,125 @@ function authMiddleware(req, res, next) {
 
 // ---------- Auth Routes ----------
 app.post('/api/auth/signup', (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name || !email || !password) {
-    return res.status(400).json({ error: 'Name, email and password are required' });
+  try {
+    const { name, email, password } = req.body || {};
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'Name, email and password are required' });
+    }
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'Invalid email or password format' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(cleanEmail);
+    if (existing) {
+      return res.status(409).json({ error: 'An account with this email already exists' });
+    }
+
+    const hash = bcrypt.hashSync(password, 10);
+    const info = db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)')
+      .run(name.trim(), cleanEmail, hash);
+
+    const user = { id: Number(info.lastInsertRowid), name: name.trim(), email: cleanEmail };
+    const token = signToken(user);
+
+    res.json({ token, user });
+  } catch (err) {
+    console.error('Signup error:', err);
+    res.status(500).json({ error: 'Registration failed: ' + (err.message || 'Internal server error') });
   }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters' });
-  }
-
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase());
-  if (existing) {
-    return res.status(409).json({ error: 'An account with this email already exists' });
-  }
-
-  const hash = bcrypt.hashSync(password, 10);
-  const info = db.prepare('INSERT INTO users (name, email, password_hash) VALUES (?, ?, ?)')
-    .run(name.trim(), email.toLowerCase(), hash);
-
-  const user = { id: info.lastInsertRowid, name: name.trim(), email: email.toLowerCase() };
-  const token = signToken(user);
-
-  res.json({ token, user });
 });
 
 app.post('/api/auth/forgot-password', (req, res) => {
-  const { email } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: 'Email is required' });
+  try {
+    const { email } = req.body || {};
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(cleanEmail);
+    if (!user) {
+      return res.json({ message: 'If that email exists, a reset link has been prepared.' });
+    }
+
+    const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '15m' });
+    RESET_TOKENS.set(token, { userId: user.id, email: user.email });
+
+    res.json({ message: 'If that email exists, a reset link has been prepared.', token });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    res.status(500).json({ error: 'Forgot password process failed' });
   }
-
-  const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email.toLowerCase());
-  if (!user) {
-    return res.json({ message: 'If that email exists, a reset link has been prepared.' });
-  }
-
-  const token = jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '15m' });
-  RESET_TOKENS.set(token, { userId: user.id, email: user.email });
-
-  res.json({ message: 'If that email exists, a reset link has been prepared.', token });
 });
 
 app.post('/api/auth/reset-password', (req, res) => {
-  const { token, password } = req.body;
-  if (!token || !password) {
-    return res.status(400).json({ error: 'Reset token and new password are required' });
-  }
-  if (password.length < 6) {
-    return res.status(400).json({ error: 'Password must be at least 6 characters' });
-  }
-
-  const resetEntry = RESET_TOKENS.get(token);
-  if (!resetEntry) {
-    return res.status(400).json({ error: 'Reset token is invalid or expired' });
-  }
-
   try {
-    jwt.verify(token, JWT_SECRET);
-  } catch (err) {
+    const { token, password } = req.body || {};
+    if (!token || !password) {
+      return res.status(400).json({ error: 'Reset token and new password are required' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ error: 'Password must be at least 6 characters' });
+    }
+
+    const resetEntry = RESET_TOKENS.get(token);
+    if (!resetEntry) {
+      return res.status(400).json({ error: 'Reset token is invalid or expired' });
+    }
+
+    try {
+      jwt.verify(token, JWT_SECRET);
+    } catch (err) {
+      RESET_TOKENS.delete(token);
+      return res.status(400).json({ error: 'Reset token is invalid or expired' });
+    }
+
+    const hash = bcrypt.hashSync(password, 10);
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, resetEntry.userId);
     RESET_TOKENS.delete(token);
-    return res.status(400).json({ error: 'Reset token is invalid or expired' });
+
+    res.json({ message: 'Password reset was successful' });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    res.status(500).json({ error: 'Reset password failed' });
   }
-
-  const hash = bcrypt.hashSync(password, 10);
-  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, resetEntry.userId);
-  RESET_TOKENS.delete(token);
-
-  res.json({ message: 'Password reset was successful' });
 });
 
 app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Email and password are required' });
-  }
+  try {
+    const { email, password } = req.body || {};
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email and password are required' });
+    }
 
-  const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email.toLowerCase());
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
-    return res.status(401).json({ error: 'Invalid email or password' });
-  }
+    const cleanEmail = String(email).trim().toLowerCase();
+    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(cleanEmail);
+    if (!user || !user.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
+      return res.status(401).json({ error: 'Invalid email or password' });
+    }
 
-  const token = signToken(user);
-  res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+    const token = signToken(user);
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email } });
+  } catch (err) {
+    console.error('Login error:', err);
+    res.status(500).json({ error: 'Login failed: ' + (err.message || 'Internal server error') });
+  }
 });
 
 app.get('/api/auth/me', authMiddleware, (req, res) => {
-  const user = db.prepare('SELECT id, name, email, preferences, created_at FROM users WHERE id = ?')
-    .get(req.user.id);
-  if (!user) return res.status(404).json({ error: 'User not found' });
-  res.json({ user });
+  try {
+    const user = db.prepare('SELECT id, name, email, preferences, created_at FROM users WHERE id = ?')
+      .get(req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user });
+  } catch (err) {
+    console.error('Auth me error:', err);
+    res.status(500).json({ error: 'Failed to retrieve user profile' });
+  }
 });
 
 // ---------- API Status ----------
@@ -170,36 +206,51 @@ app.get('/api/status', (req, res) => {
 
 // ---------- Chat History ----------
 app.get('/api/history', authMiddleware, (req, res) => {
-  const chats = db.prepare(`
-    SELECT c.id, c.title, c.created_at,
-           (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id) as message_count
-    FROM chats c
-    WHERE c.user_id = ?
-    ORDER BY c.created_at DESC
-  `).all(req.user.id);
-  res.json({ chats });
+  try {
+    const chats = db.prepare(`
+      SELECT c.id, c.title, c.created_at,
+             (SELECT COUNT(*) FROM messages m WHERE m.chat_id = c.id) as message_count
+      FROM chats c
+      WHERE c.user_id = ?
+      ORDER BY c.created_at DESC
+    `).all(req.user.id);
+    res.json({ chats });
+  } catch (err) {
+    console.error('History error:', err);
+    res.status(500).json({ error: 'Failed to load history' });
+  }
 });
 
 app.get('/api/chat/:id/messages', authMiddleware, (req, res) => {
-  const chat = db.prepare('SELECT * FROM chats WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.user.id);
-  if (!chat) return res.status(404).json({ error: 'Chat not found' });
+  try {
+    const chat = db.prepare('SELECT * FROM chats WHERE id = ? AND user_id = ?')
+      .get(req.params.id, req.user.id);
+    if (!chat) return res.status(404).json({ error: 'Chat not found' });
 
-  const messages = db.prepare('SELECT role, content, created_at FROM messages WHERE chat_id = ? ORDER BY id')
-    .all(chat.id);
-  res.json({ chat: { id: chat.id, title: chat.title }, messages });
+    const messages = db.prepare('SELECT role, content, created_at FROM messages WHERE chat_id = ? ORDER BY id')
+      .all(chat.id);
+    res.json({ chat: { id: chat.id, title: chat.title }, messages });
+  } catch (err) {
+    console.error('Messages error:', err);
+    res.status(500).json({ error: 'Failed to load messages' });
+  }
 });
 
 app.delete('/api/chat/:id', authMiddleware, (req, res) => {
-  const result = db.prepare('DELETE FROM chats WHERE id = ? AND user_id = ?')
-    .run(req.params.id, req.user.id);
-  if (result.changes === 0) return res.status(404).json({ error: 'Chat not found' });
-  res.json({ success: true });
+  try {
+    const result = db.prepare('DELETE FROM chats WHERE id = ? AND user_id = ?')
+      .run(req.params.id, req.user.id);
+    if (result.changes === 0) return res.status(404).json({ error: 'Chat not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Delete chat error:', err);
+    res.status(500).json({ error: 'Failed to delete chat' });
+  }
 });
 
 // ---------- AI Chat Route ----------
 app.post('/api/chat', authMiddleware, async (req, res) => {
-  const { message, chatId } = req.body;
+  const { message, chatId } = req.body || {};
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message is required' });
   }
@@ -297,6 +348,12 @@ app.get('/health', (req, res) => {
 // ---------- Serve the app ----------
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// Global Express Error Handler
+app.use((err, req, res, next) => {
+  console.error('Unhandled Server Error:', err);
+  res.status(500).json({ error: err.message || 'Internal Server Error' });
 });
 
 app.listen(PORT, '0.0.0.0', () => {
