@@ -1,7 +1,15 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 
-const db = new DatabaseSync(path.join(__dirname, 'chatgpt.db'));
+const fs = require('fs');
+
+const dbPath = process.env.DB_PATH || path.join(__dirname, 'chatgpt.db');
+const dbDir = path.dirname(dbPath);
+if (!fs.existsSync(dbDir)) {
+  fs.mkdirSync(dbDir, { recursive: true });
+}
+
+const db = new DatabaseSync(dbPath);
 
 // Enable foreign keys
 db.exec('PRAGMA foreign_keys = ON;');

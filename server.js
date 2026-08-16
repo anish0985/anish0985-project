@@ -49,7 +49,7 @@ app.use(express.json());
 app.use(express.static(__dirname));
 
 // ---------- JWT Helpers ----------
-const JWT_SECRET = process.env.JWT_SECRET;
+const JWT_SECRET = process.env.JWT_SECRET || 'mini-chatgpt-secret-key-default-change-in-env';
 
 function signToken(user) {
   return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
