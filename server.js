@@ -188,7 +188,11 @@ function authMiddleware(req, res, next) {
   }
   try {
     const payload = jwt.verify(header.slice(7), JWT_SECRET);
-    req.user = payload;
+    const userExists = db.prepare('SELECT id, email FROM users WHERE id = ?').get(payload.id);
+    if (!userExists) {
+      return res.status(401).json({ error: 'Session expired or user account not found. Please log in again.' });
+    }
+    req.user = { id: userExists.id, email: userExists.email };
     next();
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
