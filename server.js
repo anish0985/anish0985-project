@@ -14,20 +14,45 @@ const RESET_TOKENS = new Map();
 const DEFAULT_GEMINI_KEY = Buffer.from('QVEuQWI4Uk42TEsxMnlrLVo5Sm9wd2Jtd2tTLU41dXJhSDdqS2dpc3JBMWd0aGZmWlVpckE=', 'base64').toString('utf-8');
 const GEMINI_MODEL_FALLBACKS = [
   process.env.GEMINI_MODEL,
+  'gemini-2.5-flash',
   'gemini-3.6-flash',
   'gemini-flash-latest',
-  'gemini-3-flash-preview'
+  'gemini-3.7-flash'
 ].filter(Boolean);
 
 function getGeminiApiKey() {
   return process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
 }
 
+function formatAiContents(history) {
+  const contents = [];
+  for (const entry of history) {
+    const role = entry.role === 'assistant' ? 'model' : 'user';
+    const text = (entry.content || '').trim();
+    if (!text) continue;
+
+    if (contents.length > 0 && contents[contents.length - 1].role === role) {
+      contents[contents.length - 1].parts[0].text += '\n\n' + text;
+    } else {
+      contents.push({ role, parts: [{ text }] });
+    }
+  }
+
+  if (contents.length > 0 && contents[0].role !== 'user') {
+    contents[0].role = 'user';
+  }
+
+  return contents;
+}
+
+function sanitizeError(err) {
+  if (!err) return 'Unknown error';
+  const msg = typeof err === 'string' ? err : (err.message || String(err));
+  return msg.replace(/key=[a-zA-Z0-9_\-\.]+/gi, 'key=[REDACTED]');
+}
+
 async function callGemini({ apiKey, systemPrompt, history }) {
-  const aiContents = history.map((entry) => ({
-    role: entry.role === 'assistant' ? 'model' : 'user',
-    parts: [{ text: entry.content }]
-  }));
+  const aiContents = formatAiContents(history);
 
   const payload = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
@@ -67,10 +92,12 @@ async function callGemini({ apiKey, systemPrompt, history }) {
         throw new Error(`AI service error (${aiResponse.status}): ${apiMessage}`);
       }
 
-      const aiText = aiData?.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text)
-        .filter(Boolean)
-        .join('') || '';
+      const parts = aiData?.candidates?.[0]?.content?.parts || [];
+      const aiText = parts
+        .filter((p) => typeof p.text === 'string' && !p.thought)
+        .map((p) => p.text)
+        .join('')
+        .trim() || parts.map((p) => p.text || '').join('').trim();
 
       if (!aiText) {
         throw new Error('AI API returned empty response');
@@ -85,7 +112,8 @@ async function callGemini({ apiKey, systemPrompt, history }) {
       lastError = err;
       const retryable = err.name === 'AbortError'
         || /AI service error \((404|429|500|502|503|504)\)/.test(err.message)
-        || err.message.includes('fetch failed');
+        || err.message.includes('fetch failed')
+        || err.message.includes('empty response');
 
       if (!retryable || modelName === GEMINI_MODEL_FALLBACKS[GEMINI_MODEL_FALLBACKS.length - 1]) {
         break;
@@ -99,12 +127,12 @@ async function callGemini({ apiKey, systemPrompt, history }) {
     throw new Error('AI request timed out. Please try again.');
   }
 
-  const detail = lastError?.message || 'Unknown AI error';
+  const detail = sanitizeError(lastError?.message || 'Unknown AI error');
   throw new Error(`AI unavailable after trying ${triedModels.join(', ')}: ${detail}`);
 }
 
 function getPublicAiError(err) {
-  const message = err?.message || 'Unknown AI error';
+  const message = sanitizeError(err);
 
   if (message.includes('AI API key is not configured')) {
     return 'AI API key is not configured on the server. Add GEMINI_API_KEY in Railway variables.';
@@ -119,10 +147,10 @@ function getPublicAiError(err) {
     return 'Invalid AI API key. Set a valid GEMINI_API_KEY in Railway environment variables.';
   }
   if (message.includes('404')) {
-    return 'AI model is unavailable. Set GEMINI_MODEL=gemini-flash-latest in Railway variables.';
+    return 'AI model is unavailable. Set GEMINI_MODEL=gemini-2.5-flash in Railway variables.';
   }
 
-  return 'Failed to generate response. Please try again.';
+  return message.length > 200 ? message.slice(0, 200) + '…' : message;
 }
 
 const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean);
@@ -411,17 +439,20 @@ Use the user's stored memories when relevant to personalize your responses.` + m
     // 6. Call Gemini API using the server-side API key
     const { text: aiText } = await callGemini({ apiKey, systemPrompt, history });
 
+    const numericChatId = Number(chat.id);
+
     // 7. Save AI response
     db.prepare('INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)')
-      .run(chat.id, 'assistant', aiText);
+      .run(numericChatId, 'assistant', aiText);
 
     res.json({
-      chatId: chat.id,
+      chatId: numericChatId,
       response: aiText
     });
   } catch (err) {
-    console.error('Chat error:', err.message);
-    res.status(500).json({ error: getPublicAiError(err) });
+    const safeError = getPublicAiError(err);
+    console.error('❌ Chat generation error:', safeError, err?.stack || '');
+    res.status(500).json({ error: safeError });
   }
 });
 
