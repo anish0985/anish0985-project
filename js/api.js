@@ -48,6 +48,10 @@ const API = (() => {
     return window.API_BASE_URL || localStorage.getItem('minigpt_api_url') || '';
   }
 
+  function needsBackendUrl() {
+    return Boolean(window.MINIGPT_BACKEND_MISSING && !getApiBaseUrl());
+  }
+
   function setApiBaseUrl(url) {
     if (url) {
       localStorage.setItem('minigpt_api_url', url.replace(/\/+$/, ''));
@@ -156,6 +160,10 @@ const API = (() => {
     }
 
     if (endpoint === '/api/chat' && method === 'POST') {
+      if (needsBackendUrl()) {
+        throw new Error('Backend not connected. Deploy server.js to Railway and set your Railway URL in the minigpt-backend meta tag.');
+      }
+
       const user = getCurrentUser() || { id: 'demo_user' };
       let chats = LocalStorageDB.getChats(user.id);
       let chat;
@@ -170,11 +178,11 @@ const API = (() => {
 
       chat.messages.push({ role: 'user', content: body.message, created_at: new Date().toISOString() });
 
-      const aiReply = `Hello! You are viewing MiniGPT on GitHub Pages (Static Hosting). I am responding in client demo mode. To connect live Gemini AI, deploy server.js to Render/Vercel and set your backend API URL!`;
+      const aiReply = `Hello! You are viewing MiniGPT on static hosting. Connect your Railway backend URL to enable live AI chat.`;
       chat.messages.push({ role: 'assistant', content: aiReply, created_at: new Date().toISOString() });
 
       LocalStorageDB.saveChats(user.id, chats);
-      return { chat: { id: chat.id, title: chat.title }, reply: aiReply };
+      return { chatId: chat.id, response: aiReply };
     }
 
     throw new Error(`Endpoint ${endpoint} not supported in demo mode`);
@@ -251,8 +259,8 @@ const API = (() => {
       if (err.name === 'AbortError') {
         throw new Error('Request timed out. Please try again.');
       }
-      // Network error or 405 fallback on static host
-      if (!baseUrl && isStaticHost()) {
+      // Network error fallback on static host only when backend URL is not required
+      if (!getApiBaseUrl() && isStaticHost() && !needsBackendUrl()) {
         console.warn('⚠️ Request failed on static host. Falling back to local demo mode.', err);
         return await mockRequest(endpoint, options);
       }
@@ -347,6 +355,7 @@ const API = (() => {
     clearAuth,
     getApiBaseUrl,
     setApiBaseUrl,
+    needsBackendUrl,
     request,
     auth,
     chat,

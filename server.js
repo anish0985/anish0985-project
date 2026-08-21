@@ -12,6 +12,118 @@ const app = express();
 const PORT = Number(process.env.PORT || 10000);
 const RESET_TOKENS = new Map();
 const DEFAULT_GEMINI_KEY = Buffer.from('QVEuQWI4Uk42TEsxMnlrLVo5Sm9wd2Jtd2tTLU41dXJhSDdqS2dpc3JBMWd0aGZmWlVpckE=', 'base64').toString('utf-8');
+const GEMINI_MODEL_FALLBACKS = [
+  process.env.GEMINI_MODEL,
+  'gemini-3.6-flash',
+  'gemini-flash-latest',
+  'gemini-3-flash-preview'
+].filter(Boolean);
+
+function getGeminiApiKey() {
+  return process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
+}
+
+async function callGemini({ apiKey, systemPrompt, history }) {
+  const aiContents = history.map((entry) => ({
+    role: entry.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: entry.content }]
+  }));
+
+  const payload = {
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    contents: aiContents,
+    generationConfig: { temperature: 0.7, maxOutputTokens: 1024 }
+  };
+
+  const triedModels = [];
+  let lastError = null;
+
+  for (const modelName of [...new Set(GEMINI_MODEL_FALLBACKS)]) {
+    triedModels.push(modelName);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45000);
+
+    try {
+      const aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        }
+      );
+
+      const responseText = await aiResponse.text();
+      let aiData = null;
+      try {
+        aiData = responseText ? JSON.parse(responseText) : null;
+      } catch (parseErr) {
+        throw new Error(`Invalid AI response (${aiResponse.status})`);
+      }
+
+      if (!aiResponse.ok) {
+        const apiMessage = aiData?.error?.message || responseText.slice(0, 200);
+        throw new Error(`AI service error (${aiResponse.status}): ${apiMessage}`);
+      }
+
+      const aiText = aiData?.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text)
+        .filter(Boolean)
+        .join('') || '';
+
+      if (!aiText) {
+        throw new Error('AI API returned empty response');
+      }
+
+      if (modelName !== GEMINI_MODEL_FALLBACKS[0]) {
+        console.warn(`Gemini fallback model used: ${modelName}`);
+      }
+
+      return { text: aiText, model: modelName };
+    } catch (err) {
+      lastError = err;
+      const retryable = err.name === 'AbortError'
+        || /AI service error \((404|429|500|502|503|504)\)/.test(err.message)
+        || err.message.includes('fetch failed');
+
+      if (!retryable || modelName === GEMINI_MODEL_FALLBACKS[GEMINI_MODEL_FALLBACKS.length - 1]) {
+        break;
+      }
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  if (lastError?.name === 'AbortError') {
+    throw new Error('AI request timed out. Please try again.');
+  }
+
+  const detail = lastError?.message || 'Unknown AI error';
+  throw new Error(`AI unavailable after trying ${triedModels.join(', ')}: ${detail}`);
+}
+
+function getPublicAiError(err) {
+  const message = err?.message || 'Unknown AI error';
+
+  if (message.includes('AI API key is not configured')) {
+    return 'AI API key is not configured on the server. Add GEMINI_API_KEY in Railway variables.';
+  }
+  if (message.includes('timed out')) {
+    return 'AI request timed out. Please try again.';
+  }
+  if (message.includes('429') || /quota|rate limit/i.test(message)) {
+    return 'AI rate limit reached. Please wait a moment and try again.';
+  }
+  if (message.includes('403') || message.includes('API key not valid')) {
+    return 'Invalid AI API key. Set a valid GEMINI_API_KEY in Railway environment variables.';
+  }
+  if (message.includes('404')) {
+    return 'AI model is unavailable. Set GEMINI_MODEL=gemini-flash-latest in Railway variables.';
+  }
+
+  return 'Failed to generate response. Please try again.';
+}
 
 const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 const corsOptions = {
@@ -200,9 +312,12 @@ app.get('/api/auth/me', authMiddleware, (req, res) => {
 
 // ---------- API Status ----------
 app.get('/api/status', (req, res) => {
-  const apiKey = process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
-  const model = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-  res.json({ keySet: Boolean(apiKey), model });
+  const apiKey = getGeminiApiKey();
+  res.json({
+    keySet: Boolean(apiKey),
+    model: GEMINI_MODEL_FALLBACKS[0],
+    fallbackModels: GEMINI_MODEL_FALLBACKS.slice(1)
+  });
 });
 
 // ---------- Chat History ----------
@@ -256,9 +371,9 @@ app.post('/api/chat', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Message is required' });
   }
 
-  const apiKey = process.env.GEMINI_API_KEY || DEFAULT_GEMINI_KEY;
+  const apiKey = getGeminiApiKey();
   if (!apiKey) {
-    return res.status(503).json({ error: 'AI API key is not configured on the server' });
+    return res.status(503).json({ error: 'AI API key is not configured on the server. Add GEMINI_API_KEY in Railway variables.' });
   }
 
   try {
@@ -294,38 +409,7 @@ Always answer in the same language the user writes in.
 Use the user's stored memories when relevant to personalize your responses.` + memoryContext;
 
     // 6. Call Gemini API using the server-side API key
-    const modelName = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-    const aiContents = [
-      { role: 'user', parts: [{ text: systemPrompt }] },
-      ...history.map(h => ({
-        role: h.role === 'assistant' ? 'model' : 'user',
-        parts: [{ text: h.content }]
-      }))
-    ];
-
-    const aiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        contents: aiContents,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024
-        }
-      })
-    });
-
-    if (!aiResponse.ok) {
-      const errText = await aiResponse.text();
-      console.error(`Gemini API Error (${aiResponse.status}):`, errText);
-      throw new Error(`AI service error (${aiResponse.status}): ${errText}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const aiText = aiData.candidates?.[0]?.content?.parts?.map(part => part.text).filter(Boolean).join('') || '';
-    if (!aiText) throw new Error('AI API returned empty response');
+    const { text: aiText } = await callGemini({ apiKey, systemPrompt, history });
 
     // 7. Save AI response
     db.prepare('INSERT INTO messages (chat_id, role, content) VALUES (?, ?, ?)')
@@ -337,7 +421,7 @@ Use the user's stored memories when relevant to personalize your responses.` + m
     });
   } catch (err) {
     console.error('Chat error:', err.message);
-    res.status(500).json({ error: 'Failed to generate response. Please try again.' });
+    res.status(500).json({ error: getPublicAiError(err) });
   }
 });
 

@@ -81,14 +81,34 @@
     });
   }
 
+  function normalizeMessageContent(content) {
+    if (content === null || content === undefined) return '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content.map(item => normalizeMessageContent(item)).filter(Boolean).join('');
+    }
+    if (typeof content === 'object') {
+      if (typeof content.text === 'string') return content.text;
+      if (typeof content.content === 'string') return content.content;
+      if (typeof content.message === 'string') return content.message;
+      try {
+        return JSON.stringify(content);
+      } catch (err) {
+        return String(content);
+      }
+    }
+    return String(content);
+  }
+
   function appendMessage(role, content) {
     if (elements.welcomeScreen) elements.welcomeScreen.remove();
     const row = document.createElement('div');
     row.className = `message-row ${role}`;
     const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const messageText = normalizeMessageContent(content);
     row.innerHTML = `
       <div class="message-wrapper">
-        <div class="message-bubble">${escapeHtml(content)}</div>
+        <div class="message-bubble">${escapeHtml(messageText)}</div>
         <div class="message-meta">${timestamp}</div>
       </div>
     `;
@@ -203,8 +223,9 @@
 
     try {
       const data = await API.chat.sendMessage(message, state.currentChatId);
+      const aiReply = normalizeMessageContent(data?.response ?? data?.text ?? data?.message);
       removeTypingIndicator();
-      appendMessage('ai', data.response);
+      appendMessage('ai', aiReply);
       state.currentChatId = data.chatId;
       elements.chatTitle.textContent = message.length > 40 ? `${message.slice(0, 40)}…` : message;
       await loadHistory();
@@ -272,6 +293,10 @@
     if (!API.getToken()) {
       window.location.href = 'login.html';
       return;
+    }
+
+    if (API.needsBackendUrl && API.needsBackendUrl()) {
+      showToast('Backend not connected. Set your Railway URL in the minigpt-backend meta tag.', 'warning', 8000);
     }
 
     attachEvents();
