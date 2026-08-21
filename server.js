@@ -14,9 +14,7 @@ const RESET_TOKENS = new Map();
 const DEFAULT_GEMINI_KEY = Buffer.from('QVEuQWI4Uk42TEsxMnlrLVo5Sm9wd2Jtd2tTLU41dXJhSDdqS2dpc3JBMWd0aGZmWlVpckE=', 'base64').toString('utf-8');
 const GEMINI_MODEL_FALLBACKS = [
   process.env.GEMINI_MODEL,
-  'gemini-2.5-flash',
   'gemini-3.6-flash',
-  'gemini-flash-latest',
   'gemini-3.7-flash'
 ].filter(Boolean);
 
@@ -66,7 +64,7 @@ async function callGemini({ apiKey, systemPrompt, history }) {
   for (const modelName of [...new Set(GEMINI_MODEL_FALLBACKS)]) {
     triedModels.push(modelName);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
+    const timeoutId = setTimeout(() => controller.abort(), 25000);
 
     try {
       const aiResponse = await fetch(
@@ -84,7 +82,7 @@ async function callGemini({ apiKey, systemPrompt, history }) {
       try {
         aiData = responseText ? JSON.parse(responseText) : null;
       } catch (parseErr) {
-        throw new Error(`Invalid AI response (${aiResponse.status})`);
+        throw new Error(`Invalid JSON from AI provider (${aiResponse.status}): ${responseText.slice(0, 100)}`);
       }
 
       if (!aiResponse.ok) {
@@ -100,7 +98,8 @@ async function callGemini({ apiKey, systemPrompt, history }) {
         .trim() || parts.map((p) => p.text || '').join('').trim();
 
       if (!aiText) {
-        throw new Error('AI API returned empty response');
+        const finishReason = aiData?.candidates?.[0]?.finishReason || 'EMPTY';
+        throw new Error(`AI returned no text (finishReason: ${finishReason})`);
       }
 
       if (modelName !== GEMINI_MODEL_FALLBACKS[0]) {
@@ -112,8 +111,7 @@ async function callGemini({ apiKey, systemPrompt, history }) {
       lastError = err;
       const retryable = err.name === 'AbortError'
         || /AI service error \((404|429|500|502|503|504)\)/.test(err.message)
-        || err.message.includes('fetch failed')
-        || err.message.includes('empty response');
+        || err.message.includes('fetch failed');
 
       if (!retryable || modelName === GEMINI_MODEL_FALLBACKS[GEMINI_MODEL_FALLBACKS.length - 1]) {
         break;
@@ -132,25 +130,7 @@ async function callGemini({ apiKey, systemPrompt, history }) {
 }
 
 function getPublicAiError(err) {
-  const message = sanitizeError(err);
-
-  if (message.includes('AI API key is not configured')) {
-    return 'AI API key is not configured on the server. Add GEMINI_API_KEY in Railway variables.';
-  }
-  if (message.includes('timed out')) {
-    return 'AI request timed out. Please try again.';
-  }
-  if (message.includes('429') || /quota|rate limit/i.test(message)) {
-    return 'AI rate limit reached. Please wait a moment and try again.';
-  }
-  if (message.includes('403') || message.includes('API key not valid')) {
-    return 'Invalid AI API key. Set a valid GEMINI_API_KEY in Railway environment variables.';
-  }
-  if (message.includes('404')) {
-    return 'AI model is unavailable. Set GEMINI_MODEL=gemini-2.5-flash in Railway variables.';
-  }
-
-  return message.length > 200 ? message.slice(0, 200) + '…' : message;
+  return sanitizeError(err);
 }
 
 const allowedOrigins = (process.env.CORS_ORIGINS || process.env.CORS_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean);
